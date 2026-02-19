@@ -135,8 +135,9 @@ pytest -q                               # test
 
 **Before committing:**
 1. Re-read your changes for unnecessary complexity, redundant code, and unclear naming
-2. Run relevant tests — not the full suite
-3. Run linters and type checker — fix everything before committing
+2. Run linters and type checker — fix everything before committing
+3. Run a single cycle (`uv run python -m cryptoagent.cli.main SOL`) to verify the pipeline works end-to-end
+4. Never commit or push if any step fails
 
 **Git Conventions:**
 - Imperative mood, ≤72 char subject line, one logical change per commit

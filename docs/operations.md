@@ -28,15 +28,25 @@ uv run python -m cryptoagent.cli.main SOL \
   --cycles 3 -v
 ```
 
-## Quality Checks
+## Before Every Commit
+
+**Always verify before committing or pushing:**
+
+1. Run quality checks (lint, format, types)
+2. Run a single cycle to confirm the pipeline works end-to-end
 
 ```bash
+# 1. Quality
 ruff check cryptoagent/                 # lint
 ruff format cryptoagent/                # format
 ty check                                # type check
-pytest -q                               # test (quick)
-uv run pytest -v                        # test (verbose)
+pytest -q                               # unit tests
+
+# 2. Integration — run a single cycle
+uv run python -m cryptoagent.cli.main SOL
 ```
+
+If any step fails, fix before committing. Never push broken code.
 
 ## Inspect Data
 

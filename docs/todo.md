@@ -6,13 +6,9 @@ _(none)_
 
 ## Planned
 
-### Phase 3: Full Data Richness + Macro Intelligence
-- [ ] Real macro data providers (M2 money supply, DXY index, Fed rates via FRED API)
-- [ ] Macro regime classifier (risk-on / risk-off)
-- [ ] News aggregator (CryptoPanic or Gnews)
+### Phase 3 (Remaining — deferred items)
 - [ ] Protocol fundamentals (token unlocks, governance activity)
 - [ ] Insider intelligence (congress trades, whale wallet tracking via Arkham)
-- [ ] Add Macro Analyst and Insider Analyst agents (6 analysts total)
 - [ ] Redis caching layer for data providers
 
 ### Phase 4: Signal Correlation Engine
@@ -68,6 +64,17 @@ _(none)_
 - [x] Risk Sentinel (daily loss, drawdown, volatility spike checks)
 - [x] Multi-cycle CLI (`--cycles N`) with portfolio carry-forward
 - [x] Graceful degradation (real data → stub fallback)
+
+### Phase 3: Macro Intelligence + News
+- [x] FRED API provider (M2 money supply, Fed Funds Rate, Treasury yields, yield curve)
+- [x] Macro regime classifier (risk-on / risk-off / neutral)
+- [x] CryptoPanic RSS news provider (crypto headlines)
+- [x] Macro Analyst agent (5th agent, parallel with Research + Sentiment)
+- [x] News integration into Sentiment agent prompt
+- [x] Macro report + regime into Brain agent prompt
+- [x] Graph wiring (5-agent parallel fan-out)
+- [x] CLI updates (--macro-model flag, Macro Report panel)
+- [x] Graceful degradation without FRED API key
 
 ## Ideas / Backlog
 

@@ -25,10 +25,11 @@ Rules:
 6. When Twitter data is available, reference the sentiment ratio (bullish/bearish/neutral split).
 7. Always anchor on the Fear & Greed Index as a baseline, then layer social signals on top.
 8. Keep it under 400 words.
+9. When news headlines are available, note recurring themes and any breaking developments.
 """
 
 
-def _build_user_prompt(token: str, sentiment_data: dict) -> str:
+def _build_user_prompt(token: str, sentiment_data: dict, news_data: dict | None = None) -> str:
     sections = [f"Analyze the following sentiment data for {token} and produce your sentiment report.\n"]
 
     # Fear & Greed
@@ -75,6 +76,20 @@ def _build_user_prompt(token: str, sentiment_data: dict) -> str:
         note = twitter.get("note", "Twitter data not configured") if twitter else "No Twitter data"
         sections.append(f"## Twitter/X Sentiment\n{note}\n")
 
+    # Crypto news headlines
+    if news_data and news_data.get("source") != "error" and news_data.get("headlines"):
+        headlines = news_data["headlines"][:5]
+        sections.append("## Crypto News Headlines")
+        token_specific = news_data.get("token_specific", False)
+        if token_specific:
+            sections.append(f"(Filtered for {token})")
+        for h in headlines:
+            pub = h.get("pub_date", "")
+            sections.append(f"- {h.get('title', '')} [{pub}]")
+        sections.append("")
+    else:
+        sections.append("## Crypto News Headlines\nCrypto news data unavailable.\n")
+
     sections.append("Produce a concise sentiment report with direction, intensity, and key observations.")
     return "\n".join(sections)
 
@@ -91,8 +106,9 @@ def sentiment_node(state: AgentState) -> dict:
     logger.info("[Sentiment Agent] Collecting sentiment data for %s", token)
 
     sentiment_data = aggregator.get_sentiment_data(token)
+    news_data = aggregator.get_news_data(token)
 
-    user_prompt = _build_user_prompt(token, sentiment_data)
+    user_prompt = _build_user_prompt(token, sentiment_data, news_data)
 
     logger.info("[Sentiment Agent] Calling LLM: %s", agent_config.sentiment_model)
     report = call_llm(
@@ -108,4 +124,5 @@ def sentiment_node(state: AgentState) -> dict:
     return {
         "sentiment_report": report,
         "fear_greed_index": fng,
+        "news_data": news_data,
     }

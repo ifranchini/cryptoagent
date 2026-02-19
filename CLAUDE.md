@@ -96,7 +96,7 @@ Tests in `tests/` directory mirroring package structure. Supply chain: `pip-audi
 
 # CryptoAgent
 
-Multi-agent LLM trading system. 4 agents (Research, Sentiment, Brain, Trader) orchestrated via LangGraph, with LiteLLM for model routing, CCXT for market data, and real on-chain/social data sources. Paper trading only — no live execution yet.
+Multi-agent LLM trading system. 5 agents (Research, Sentiment, Macro, Brain, Trader) orchestrated via LangGraph, with LiteLLM for model routing, CCXT for market data, FRED for macro data, and real on-chain/social/news data sources. Paper trading only — no live execution yet.
 
 ## Quick Reference
 
@@ -147,18 +147,18 @@ pytest -q                               # test
 ## Architecture
 
 ```
-DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed)
+DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic)
         │
-  ┌─────┴─────┐
-  ▼           ▼
-Research   Sentiment     ← cheap/fast LLMs (parallel)
-  │           │
-  └─────┬─────┘
+  ┌─────┼─────┐
+  ▼     ▼     ▼
+Research Sentiment Macro  ← cheap/fast LLMs (parallel)
+  │     │     │
+  └─────┼─────┘
         ▼
-      Brain              ← best reasoning LLM (+ regime, on-chain, reflections)
+      Brain                ← best reasoning LLM (+ regime, macro, on-chain, reflections)
         │
         ▼
-      Trader             ← fast LLM → paper execution
+      Trader               ← fast LLM → paper execution
 
 Pre-pipeline:  Risk Sentinel pre-check, regime classification, reflection loading
 Post-pipeline: Trade logging (SQLite), Level 1/2 reflection generation
@@ -171,8 +171,8 @@ See @docs/ARCHITECTURE.md for the full long-term vision.
 | Location | Purpose |
 |----------|---------|
 | `cryptoagent/config.py` | Pydantic settings (`CA_` env prefix) |
-| `cryptoagent/agents/` | 4 agent implementations |
-| `cryptoagent/dataflows/` | Data providers (market, onchain, social, regime) |
+| `cryptoagent/agents/` | 5 agent implementations (research, sentiment, macro, brain, trader) |
+| `cryptoagent/dataflows/` | Data providers (market, onchain, social, macro, news, regime) |
 | `cryptoagent/graph/builder.py` | LangGraph wiring + pre/post pipeline |
 | `cryptoagent/persistence/` | SQLite trade + reflection storage |
 | `cryptoagent/reflection/manager.py` | Two-level reflection system |

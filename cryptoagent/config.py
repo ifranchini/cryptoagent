@@ -13,6 +13,7 @@ class AgentConfig(BaseSettings):
     sentiment_model: str = "openai/gpt-4o-mini"
     brain_model: str = "openai/gpt-4o"
     trader_model: str = "openai/gpt-4o-mini"
+    macro_model: str = "openai/gpt-4o-mini"
 
     # Asset
     asset_type: Literal["crypto", "equity"] = "crypto"
@@ -47,6 +48,9 @@ class AgentConfig(BaseSettings):
     twitter_bearer_token: str = ""
     twitter_scrape_url: str = ""
     reddit_subreddits: list[str] = ["solana", "cryptocurrency"]
+
+    # Macro data
+    fred_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

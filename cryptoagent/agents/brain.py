@@ -38,7 +38,10 @@ from prior trading sessions. Avoid repeating past mistakes.
 
 6. **Risk Assessment**: Consider current portfolio exposure, volatility (ATR), and your confidence level.
 
-7. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
+7. **Macro Context**: Consider the macro regime (risk-on/risk-off) alongside market regime. \
+Divergence between market and macro regimes signals caution.
+
+8. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
    - "action": one of "BUY", "SELL", "HOLD"
    - "asset": the token symbol (e.g., "SOL")
    - "size_pct": percentage of available capital to allocate (0-100, e.g., 10 means 10%)
@@ -64,6 +67,8 @@ def _build_user_prompt(
     regime_confidence: int = 0,
     fear_greed_index: int = 50,
     cross_trial_reflections: list[str] | None = None,
+    macro_report: str = "",
+    macro_regime: str = "unknown",
 ) -> str:
     portfolio_str = json.dumps(portfolio_state, indent=2, default=str)
     memory_str = "\n".join(reflection_memory[-5:]) if reflection_memory else "No prior decisions."
@@ -82,10 +87,16 @@ def _build_user_prompt(
     else:
         onchain_section = "\n## On-Chain Data\nNot available for this cycle.\n"
 
-    # Regime section
+    # Macro analysis section
+    macro_section = ""
+    if macro_report:
+        macro_section = f"\n## Macro Analysis\n{macro_report}\n"
+
+    # Regime section — both market and macro regimes
     regime_section = (
-        f"\n## Pre-Computed Market Regime\n"
-        f"Regime: {market_regime} (confidence: {regime_confidence}/10)\n"
+        f"\n## Market Context\n"
+        f"Market Regime: {market_regime} (confidence: {regime_confidence}/10)\n"
+        f"Macro Regime: {macro_regime}\n"
         f"Fear & Greed Index: {fear_greed_index}/100\n"
     )
 
@@ -107,7 +118,7 @@ def _build_user_prompt(
 
 ## Sentiment Report
 {sentiment_report}
-{onchain_section}{regime_section}{cross_trial_str}
+{macro_section}{onchain_section}{regime_section}{cross_trial_str}
 ## Current Portfolio
 {portfolio_str}
 
@@ -140,6 +151,8 @@ def brain_node(state: AgentState) -> dict:
         regime_confidence=state.get("regime_confidence", 0),
         fear_greed_index=state.get("fear_greed_index", 50),
         cross_trial_reflections=state.get("cross_trial_reflections"),
+        macro_report=state.get("macro_report", ""),
+        macro_regime=state.get("macro_regime", "unknown"),
     )
 
     logger.info("[Brain Agent] Calling LLM: %s", agent_config.brain_model)

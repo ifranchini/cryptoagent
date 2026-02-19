@@ -1,22 +1,22 @@
 # CryptoAgent
 
-Multi-agent LLM trading system. 4 specialized agents collaborate to analyze markets and execute paper trades, each powered by a different LLM suited to its role.
+Multi-agent LLM trading system. 5 specialized agents collaborate to analyze markets and execute paper trades, each powered by a different LLM suited to its role.
 
 ## Architecture
 
 ```
-DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed)
+DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic)
         │
-  ┌─────┴─────┐
-  ▼           ▼
-Research   Sentiment     ← cheap/fast LLMs (parallel)
-  │           │
-  └─────┬─────┘
+  ┌─────┼─────┐
+  ▼     ▼     ▼
+Research Sentiment Macro  ← cheap/fast LLMs (parallel)
+  │     │     │
+  └─────┼─────┘
         ▼
-      Brain              ← best reasoning LLM (+ regime, on-chain, reflections)
+      Brain                ← best reasoning LLM (+ regime, on-chain, macro, reflections)
         │
         ▼
-      Trader             ← fast LLM → paper/live execution
+      Trader               ← fast LLM → paper/live execution
 ```
 
 **Pre-pipeline:** Risk Sentinel pre-check, market regime classification, cross-trial reflection loading.
@@ -25,14 +25,15 @@ Research   Sentiment     ← cheap/fast LLMs (parallel)
 | Agent | Role | Default Model |
 |-------|------|---------------|
 | **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + macro | `deepseek/deepseek-chat-v3-0324` |
-| **Sentiment** | Reddit posts, X/Twitter sentiment, Fear & Greed Index | `deepseek/deepseek-chat-v3-0324` |
-| **Brain** | Regime-aware signal weighting, on-chain + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
+| **Sentiment** | Reddit posts, X/Twitter sentiment, Fear & Greed Index, crypto news | `deepseek/deepseek-chat-v3-0324` |
+| **Macro** | FRED macro data (M2, Fed rate, yields, yield curve), macro regime | `deepseek/deepseek-chat-v3-0324` |
+| **Brain** | Regime-aware signal weighting, on-chain + macro + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
 | **Trader** | Execution validation, order routing, paper trading | `deepseek/deepseek-chat-v3-0324` |
 
 ## Key Design Choices
 
 - **Model-agnostic** — [LiteLLM](https://github.com/BerriAI/litellm) as unified gateway. Supports 100+ providers (OpenAI, Anthropic, DeepSeek, Ollama, OpenRouter, etc.). Each agent can use a different model.
-- **LangGraph orchestration** — Research + Sentiment run in parallel, both feed into Brain, then Trader executes. Clean 4-node DAG.
+- **LangGraph orchestration** — Research + Sentiment + Macro run in parallel, all three feed into Brain, then Trader executes. Clean 5-node DAG.
 - **Real on-chain data** — DeFiLlama (TVL, DEX volume, fees) + Solana RPC (TPS, whale activity). Graceful degradation to stubs on API failure.
 - **Real social sentiment** — Reddit JSON API (r/solana, r/cryptocurrency) + X/Twitter (scraping proxy or official API v2). Fear & Greed Index from Alternative.me.
 - **Two-level reflection memory** — Level 1 (per-cycle lessons) + Level 2 (cross-trial strategic reviews). Stored in SQLite, injected into Brain prompt.
@@ -68,6 +69,10 @@ CA_RESEARCH_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
 CA_SENTIMENT_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
 CA_BRAIN_MODEL=openrouter/anthropic/claude-sonnet-4
 CA_TRADER_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
+CA_MACRO_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
+
+# Macro data (free at https://fred.stlouisfed.org/docs/api/api_key.html)
+CA_FRED_API_KEY=your_fred_api_key_here
 
 # Asset & execution
 CA_TARGET_TOKEN=SOL
@@ -98,6 +103,7 @@ CA_REDDIT_SUBREDDITS=["solana","cryptocurrency"]
 uv run python -m cryptoagent.cli.main SOL \
   --brain-model "openrouter/anthropic/claude-sonnet-4" \
   --research-model "openrouter/deepseek/deepseek-chat-v3-0324" \
+  --macro-model "openrouter/deepseek/deepseek-chat-v3-0324" \
   --capital 50000 \
   --cycles 3 \
   --asset-type crypto \
@@ -114,7 +120,8 @@ cryptoagent/
 │   └── client.py                  # LiteLLM wrapper (call_llm, call_llm_json)
 ├── agents/
 │   ├── research.py                # Market data + TA + on-chain analysis
-│   ├── sentiment.py               # Reddit + Twitter + Fear & Greed sentiment
+│   ├── sentiment.py               # Reddit + Twitter + Fear & Greed + news sentiment
+│   ├── macro.py                   # FRED macro data + regime analysis
 │   ├── brain.py                   # Regime-aware reasoning + trade decisions
 │   └── trader.py                  # Execution validation + routing
 ├── dataflows/
@@ -126,9 +133,14 @@ cryptoagent/
 │   │   ├── defillama.py           # DeFiLlama: TVL, DEX volume, fees
 │   │   ├── solana_rpc.py          # Solana RPC: TPS, whale activity
 │   │   └── fear_greed.py          # Alternative.me Fear & Greed Index
-│   └── social/
-│       ├── reddit.py              # Reddit JSON API (no auth needed)
-│       └── twitter.py             # X/Twitter (scraping proxy or official API v2)
+│   ├── social/
+│   │   ├── reddit.py              # Reddit JSON API (no auth needed)
+│   │   └── twitter.py             # X/Twitter (scraping proxy or official API v2)
+│   ├── macro/
+│   │   ├── fred.py                # FRED API: M2, Fed rate, Treasury yields
+│   │   └── classifier.py          # Macro regime classifier (risk-on/risk-off)
+│   └── news/
+│       └── cryptopanic.py         # CryptoPanic RSS: crypto headlines
 ├── graph/
 │   ├── state.py                   # AgentState TypedDict
 │   └── builder.py                 # LangGraph wiring + TradingGraph (pre/post pipeline)
@@ -168,8 +180,15 @@ cryptoagent/
 - [x] Multi-cycle CLI (`--cycles N`) with portfolio carry-forward
 - [x] Graceful degradation (real data → stub fallback on API failure)
 
+### Phase 3 (Complete)
+- [x] Real macro data via FRED API (M2 money supply, Fed Funds Rate, Treasury yields, yield curve)
+- [x] Macro regime classifier (risk-on / risk-off / neutral heuristic)
+- [x] CryptoPanic RSS news integration (crypto headlines into Sentiment agent)
+- [x] 5th Macro Analyst agent (parallel with Research + Sentiment)
+- [x] Brain agent macro context (both market + macro regimes)
+- [x] Graceful degradation (real FRED data -> stub fallback without API key)
+
 ### Planned
-- [ ] Real macro data (DXY, Fed, S&P 500)
 - [ ] Equity support (Alpaca data provider + broker execution)
 - [ ] Live trading execution
 - [ ] Correlation engine (historical signal accuracy matrix)

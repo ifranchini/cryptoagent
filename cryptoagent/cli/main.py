@@ -42,6 +42,7 @@ def analyze(
     research_model: Optional[str] = typer.Option(None, "--research-model", help="LLM model for Research agent"),
     sentiment_model: Optional[str] = typer.Option(None, "--sentiment-model", help="LLM model for Sentiment agent"),
     trader_model: Optional[str] = typer.Option(None, "--trader-model", help="LLM model for Trader agent"),
+    macro_model: Optional[str] = typer.Option(None, "--macro-model", help="LLM model for Macro agent"),
     capital: float = typer.Option(10000.0, "--capital", "-c", help="Initial capital in USD"),
     exchange: str = typer.Option("binance", "--exchange", "-e", help="Exchange for market data"),
     cycles: int = typer.Option(1, "--cycles", "-n", help="Number of trading cycles to run"),
@@ -59,6 +60,8 @@ def analyze(
         os.environ["CA_SENTIMENT_MODEL"] = sentiment_model
     if trader_model:
         os.environ["CA_TRADER_MODEL"] = trader_model
+    if macro_model:
+        os.environ["CA_MACRO_MODEL"] = macro_model
     if asset_type:
         os.environ["CA_ASSET_TYPE"] = asset_type
     if exchange:
@@ -79,8 +82,9 @@ def analyze(
         f"  Sentiment:  {config.sentiment_model}\n"
         f"  Brain:      {config.brain_model}\n"
         f"  Trader:     {config.trader_model}\n"
+        f"  Macro:      {config.macro_model}\n"
         f"  Reflection: {config.reflection_model}",
-        title="CryptoAgent v0.2.0",
+        title="CryptoAgent v0.3.0",
         border_style="blue",
     ))
 
@@ -121,15 +125,18 @@ def _display_results(result: dict, token: str) -> None:
     # Regime + Risk verdict
     regime = result.get("market_regime", "unknown")
     regime_conf = result.get("regime_confidence", 0)
+    macro_regime = result.get("macro_regime", "unknown")
     risk_verdict = result.get("risk_verdict", "unknown")
     fng = result.get("fear_greed_index", "N/A")
 
     regime_color = {"bull": "green", "bear": "red", "sideways": "yellow"}.get(regime, "white")
+    macro_color = {"risk_on": "green", "risk_off": "red", "neutral": "yellow"}.get(macro_regime, "white")
     risk_color = {"proceed": "green", "halt": "red", "reduce": "yellow"}.get(risk_verdict, "white")
 
     console.print(Panel.fit(
-        f"[bold]Regime:[/bold] [{regime_color}]{regime.upper()}[/{regime_color}] "
+        f"[bold]Market Regime:[/bold] [{regime_color}]{regime.upper()}[/{regime_color}] "
         f"(confidence: {regime_conf}/10)\n"
+        f"[bold]Macro Regime:[/bold] [{macro_color}]{macro_regime.upper()}[/{macro_color}]\n"
         f"[bold]Fear & Greed:[/bold] {fng}/100\n"
         f"[bold]Risk Verdict:[/bold] [{risk_color}]{risk_verdict.upper()}[/{risk_color}]",
         title="Market Context",
@@ -149,6 +156,15 @@ def _display_results(result: dict, token: str) -> None:
         title="Sentiment Agent Report",
         border_style="cyan",
     ))
+
+    # Macro report
+    macro_report = result.get("macro_report", "")
+    if macro_report:
+        console.print(Panel(
+            macro_report,
+            title="Macro Analyst Report",
+            border_style="blue",
+        ))
 
     # Brain decision
     brain_raw = result.get("brain_decision", "{}")

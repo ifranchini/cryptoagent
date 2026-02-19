@@ -6,7 +6,10 @@ import logging
 from datetime import datetime, timezone
 
 from cryptoagent.config import AgentConfig
+from cryptoagent.dataflows.macro.classifier import classify_macro
+from cryptoagent.dataflows.macro.fred import get_all_macro_data as fred_get_all
 from cryptoagent.dataflows.market.ccxt_provider import get_market_snapshot
+from cryptoagent.dataflows.news.cryptopanic import get_crypto_news
 from cryptoagent.dataflows.onchain.defillama import get_all_onchain_data
 from cryptoagent.dataflows.onchain.fear_greed import get_fear_greed_index
 from cryptoagent.dataflows.onchain.solana_rpc import get_solana_network_data
@@ -30,6 +33,24 @@ _SENTIMENT_STUB = {
     "reddit_sentiment": "neutral",
     "fear_greed_index": 50,
     "fear_greed_label": "neutral",
+}
+
+_MACRO_STUB = {
+    "source": "stub",
+    "timestamp": "",
+    "dxy_trend": "stable",
+    "fed_rate_outlook": "hold",
+    "risk_appetite": "moderate",
+    "sp500_trend": "slightly_bullish",
+    "macro_regime": {"macro_regime": "unknown", "confidence": 0, "signals": {}},
+    "note": "Macro data not yet available. Using placeholder values.",
+}
+
+_NEWS_STUB = {
+    "source": "stub",
+    "headlines": [],
+    "total_count": 0,
+    "note": "News data unavailable.",
 }
 
 
@@ -107,13 +128,30 @@ class DataAggregator:
         return regime.classify(indicators)
 
     def get_macro_data(self) -> dict:
-        """Stub: macroeconomic data (not yet replaced in Phase 2)."""
-        return {
-            "source": "stub",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "dxy_trend": "stable",
-            "fed_rate_outlook": "hold",
-            "risk_appetite": "moderate",
-            "sp500_trend": "slightly_bullish",
-            "note": "Macro data not yet implemented. Using placeholder values.",
-        }
+        """Fetch real macro data from FRED, with stub fallback."""
+        logger.info("Fetching macro data from FRED")
+        try:
+            fred_data = fred_get_all(self._config.fred_api_key)
+            if fred_data.get("source") == "error":
+                logger.warning("FRED returned error: %s", fred_data.get("message"))
+                stub = {**_MACRO_STUB, "timestamp": datetime.now(timezone.utc).isoformat()}
+                return stub
+            macro_regime = classify_macro(fred_data)
+            return {
+                "source": "real",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "fred": fred_data,
+                "macro_regime": macro_regime,
+            }
+        except Exception as e:
+            logger.warning("Macro data fetch failed, using stub: %s", e)
+            return {**_MACRO_STUB, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+    def get_news_data(self, token: str) -> dict:
+        """Fetch crypto news headlines from CryptoPanic RSS."""
+        logger.info("Fetching news data for %s", token)
+        try:
+            return get_crypto_news(token)
+        except Exception as e:
+            logger.warning("News data fetch failed, using stub: %s", e)
+            return {**_NEWS_STUB, "token": token.upper()}

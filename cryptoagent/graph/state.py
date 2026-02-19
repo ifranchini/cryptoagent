@@ -45,3 +45,8 @@ class AgentState(TypedDict, total=False):
     fear_greed_index: int  # 0-100
     risk_verdict: str  # "proceed" | "halt" | "reduce"
     cross_trial_reflections: list[str]  # Level 2 reflections from prior runs
+
+    # Phase 3 additions
+    macro_report: str  # Macro Analyst agent output
+    macro_regime: str  # "risk_on" | "risk_off" | "neutral"
+    news_data: dict  # CryptoPanic headlines

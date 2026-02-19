@@ -1,4 +1,4 @@
-"""LangGraph pipeline — wires the 4 agents into a parallel-then-sequential flow."""
+"""LangGraph pipeline — wires the 5 agents into a parallel-then-sequential flow."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from langgraph.graph import END, START, StateGraph
 
 from cryptoagent.agents.brain import brain_node
+from cryptoagent.agents.macro import macro_node
 from cryptoagent.agents.research import research_node
 from cryptoagent.agents.sentiment import sentiment_node
 from cryptoagent.agents.trader import trader_node
@@ -24,27 +25,31 @@ logger = logging.getLogger(__name__)
 
 
 def build_graph() -> StateGraph:
-    """Build the 4-agent trading pipeline.
+    """Build the 5-agent trading pipeline.
 
     Flow:
-        START ──┬── research ──┬── brain ── trader ── END
-                └── sentiment ─┘
-    Research and Sentiment run in parallel. Both must complete before Brain.
+                  ┌── research ──┐
+        START ──┬─┼── sentiment ─┼── brain ── trader ── END
+                  └── macro ─────┘
+    Research, Sentiment, and Macro run in parallel. All three must complete before Brain.
     """
     graph = StateGraph(AgentState)
 
     graph.add_node("research", research_node)
     graph.add_node("sentiment", sentiment_node)
+    graph.add_node("macro", macro_node)
     graph.add_node("brain", brain_node)
     graph.add_node("trader", trader_node)
 
-    # Fan-out: START → Research + Sentiment in parallel
+    # Fan-out: START → Research + Sentiment + Macro in parallel
     graph.add_edge(START, "research")
     graph.add_edge(START, "sentiment")
+    graph.add_edge(START, "macro")
 
-    # Fan-in: both converge to Brain
+    # Fan-in: all three converge to Brain
     graph.add_edge("research", "brain")
     graph.add_edge("sentiment", "brain")
+    graph.add_edge("macro", "brain")
 
     # Sequential: Brain → Trader → END
     graph.add_edge("brain", "trader")
@@ -87,7 +92,7 @@ class TradingGraph:
         """Execute the full trading pipeline for a token.
 
         Pre-pipeline: load reflections, risk pre-check, compute regime.
-        Pipeline: 4-agent graph (unchanged topology).
+        Pipeline: 5-agent graph.
         Post-pipeline: risk post-check, log trade, generate reflections.
         """
         token = token or self.config.target_token
@@ -139,6 +144,9 @@ class TradingGraph:
             "fear_greed_index": 50,
             "risk_verdict": risk_verdict,
             "cross_trial_reflections": cross_trial,
+            "macro_report": "",
+            "macro_regime": "unknown",
+            "news_data": {},
         }
 
         # If risk sentinel halts, force HOLD without running the pipeline

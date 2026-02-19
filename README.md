@@ -5,7 +5,7 @@ Multi-agent LLM trading system. 4 specialized agents collaborate to analyze mark
 ## Architecture
 
 ```
-DATA LAYER (CCXT + stubs)
+DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed)
         │
   ┌─────┴─────┐
   ▼           ▼
@@ -13,24 +13,31 @@ Research   Sentiment     ← cheap/fast LLMs (parallel)
   │           │
   └─────┬─────┘
         ▼
-      Brain              ← best reasoning LLM
+      Brain              ← best reasoning LLM (+ regime, on-chain, reflections)
         │
         ▼
       Trader             ← fast LLM → paper/live execution
 ```
 
+**Pre-pipeline:** Risk Sentinel pre-check, market regime classification, cross-trial reflection loading.
+**Post-pipeline:** Risk Sentinel post-check, trade logging (SQLite), Level 1/2 reflection generation.
+
 | Agent | Role | Default Model |
 |-------|------|---------------|
-| **Research** | Market data + TA indicators + on-chain + macro | `deepseek/deepseek-chat-v3-0324` |
-| **Sentiment** | Social signals, news, Fear & Greed | `deepseek/deepseek-chat-v3-0324` |
-| **Brain** | Regime detection, signal weighting, trade decision | `anthropic/claude-sonnet-4` |
+| **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + macro | `deepseek/deepseek-chat-v3-0324` |
+| **Sentiment** | Reddit posts, X/Twitter sentiment, Fear & Greed Index | `deepseek/deepseek-chat-v3-0324` |
+| **Brain** | Regime-aware signal weighting, on-chain + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
 | **Trader** | Execution validation, order routing, paper trading | `deepseek/deepseek-chat-v3-0324` |
 
 ## Key Design Choices
 
 - **Model-agnostic** — [LiteLLM](https://github.com/BerriAI/litellm) as unified gateway. Supports 100+ providers (OpenAI, Anthropic, DeepSeek, Ollama, OpenRouter, etc.). Each agent can use a different model.
 - **LangGraph orchestration** — Research + Sentiment run in parallel, both feed into Brain, then Trader executes. Clean 4-node DAG.
-- **Multi-asset ready** — Shared reasoning layer for crypto and equities. Only data providers and execution backends differ per asset class.
+- **Real on-chain data** — DeFiLlama (TVL, DEX volume, fees) + Solana RPC (TPS, whale activity). Graceful degradation to stubs on API failure.
+- **Real social sentiment** — Reddit JSON API (r/solana, r/cryptocurrency) + X/Twitter (scraping proxy or official API v2). Fear & Greed Index from Alternative.me.
+- **Two-level reflection memory** — Level 1 (per-cycle lessons) + Level 2 (cross-trial strategic reviews). Stored in SQLite, injected into Brain prompt.
+- **Risk Sentinel** — Pre/post pipeline threshold checks (daily loss, drawdown, volatility spikes). Can halt trading or reduce position sizes.
+- **Market regime detector** — Pure numeric heuristic (price vs SMA50, RSI, MACD histogram). Regime + confidence fed to Brain.
 - **FS-ReasoningAgent pattern** — Research labels findings as `[FACT]` vs `[INFERENCE]`. Brain weights factual signals more heavily in bearish/uncertain regimes.
 
 ## Quick Start
@@ -44,8 +51,11 @@ uv sync
 cp .env.example .env
 # Edit .env — set your API key(s) and model preferences
 
-# Run
+# Single cycle
 uv run python -m cryptoagent.cli.main SOL
+
+# Multi-cycle with portfolio carry-forward
+uv run python -m cryptoagent.cli.main SOL --cycles 6
 ```
 
 ## Configuration
@@ -64,6 +74,22 @@ CA_TARGET_TOKEN=SOL
 CA_EXCHANGE=binance
 CA_EXECUTION_MODE=paper
 CA_INITIAL_CAPITAL=10000.0
+
+# Persistence
+CA_DB_PATH=data/cryptoagent.db
+
+# Reflection
+CA_REFLECTION_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
+CA_REFLECTION_CYCLE_LENGTH=5
+
+# Risk management
+CA_MAX_DAILY_LOSS_PCT=5.0
+CA_MAX_DRAWDOWN_PCT=15.0
+
+# Social sentiment (optional)
+CA_TWITTER_BEARER_TOKEN=        # X API v2 (optional)
+CA_TWITTER_SCRAPE_URL=          # Scraping proxy (optional)
+CA_REDDIT_SUBREDDITS=["solana","cryptocurrency"]
 ```
 
 ### CLI Options
@@ -73,6 +99,7 @@ uv run python -m cryptoagent.cli.main SOL \
   --brain-model "openrouter/anthropic/claude-sonnet-4" \
   --research-model "openrouter/deepseek/deepseek-chat-v3-0324" \
   --capital 50000 \
+  --cycles 3 \
   --asset-type crypto \
   --exchange binance \
   -v  # verbose logging
@@ -82,43 +109,71 @@ uv run python -m cryptoagent.cli.main SOL \
 
 ```
 cryptoagent/
-├── config.py                      # Pydantic settings (per-agent models, asset, execution)
+├── config.py                      # Pydantic settings (per-agent models, risk, social, etc.)
 ├── llm/
 │   └── client.py                  # LiteLLM wrapper (call_llm, call_llm_json)
 ├── agents/
-│   ├── research.py                # Market data + TA analysis
-│   ├── sentiment.py               # Social/news sentiment
-│   ├── brain.py                   # Core reasoning + trade decisions
+│   ├── research.py                # Market data + TA + on-chain analysis
+│   ├── sentiment.py               # Reddit + Twitter + Fear & Greed sentiment
+│   ├── brain.py                   # Regime-aware reasoning + trade decisions
 │   └── trader.py                  # Execution validation + routing
 ├── dataflows/
-│   ├── aggregator.py              # Unified data interface
-│   └── market/
-│       └── ccxt_provider.py       # OHLCV + 12 technical indicators via CCXT
+│   ├── aggregator.py              # Unified data interface (real providers + stub fallbacks)
+│   ├── regime.py                  # Market regime classifier (bull/bear/sideways)
+│   ├── market/
+│   │   └── ccxt_provider.py       # OHLCV + 12 technical indicators via CCXT
+│   ├── onchain/
+│   │   ├── defillama.py           # DeFiLlama: TVL, DEX volume, fees
+│   │   ├── solana_rpc.py          # Solana RPC: TPS, whale activity
+│   │   └── fear_greed.py          # Alternative.me Fear & Greed Index
+│   └── social/
+│       ├── reddit.py              # Reddit JSON API (no auth needed)
+│       └── twitter.py             # X/Twitter (scraping proxy or official API v2)
 ├── graph/
 │   ├── state.py                   # AgentState TypedDict
-│   └── builder.py                 # LangGraph wiring + TradingGraph class
+│   └── builder.py                 # LangGraph wiring + TradingGraph (pre/post pipeline)
 ├── execution/
 │   ├── paper_trade.py             # Paper trading simulator (fees, P&L)
 │   └── router.py                  # Routes to paper/live backends
+├── persistence/
+│   ├── database.py                # SQLite connection manager + schema
+│   ├── trade_logger.py            # Trade history CRUD
+│   └── reflection_store.py        # Reflection memory CRUD
+├── reflection/
+│   └── manager.py                 # Level 1 (per-cycle) + Level 2 (cross-trial) reflections
+├── risk/
+│   └── sentinel.py                # Pre/post pipeline risk checks
 └── cli/
-    └── main.py                    # Typer CLI entry point
+    └── main.py                    # Typer CLI (--cycles for multi-cycle runs)
 ```
 
-## Current Status (Phase 1)
+## Current Status
 
+### Phase 1 (Complete)
 - [x] 4-agent pipeline (Research → Sentiment → Brain → Trader)
 - [x] Real market data via CCXT (SOL/USDT from Binance, 12 TA indicators)
 - [x] LiteLLM integration (any provider, per-agent model config)
 - [x] Paper trading with fee simulation
 - [x] LangGraph parallel execution (Research + Sentiment)
 - [x] CLI with full model override flags
-- [ ] Real sentiment data (Twitter, Reddit, news APIs)
-- [ ] Real on-chain data (TVL, whale flows, active addresses)
+
+### Phase 2 (Complete)
+- [x] Real on-chain data (DeFiLlama TVL/DEX volume/fees, Solana RPC TPS/whale activity)
+- [x] Real social sentiment (Reddit JSON API, X/Twitter dual-backend)
+- [x] Fear & Greed Index (Alternative.me)
+- [x] Market regime classifier (bull/bear/sideways with confidence score)
+- [x] Two-level reflection memory (per-cycle + cross-trial strategic reviews)
+- [x] SQLite persistence (trades + reflections)
+- [x] Risk Sentinel (daily loss limit, drawdown cap, volatility spike detection)
+- [x] Multi-cycle CLI (`--cycles N`) with portfolio carry-forward
+- [x] Graceful degradation (real data → stub fallback on API failure)
+
+### Planned
 - [ ] Real macro data (DXY, Fed, S&P 500)
-- [ ] Reflection memory (past decisions + outcomes fed back to Brain)
 - [ ] Equity support (Alpaca data provider + broker execution)
 - [ ] Live trading execution
 - [ ] Correlation engine (historical signal accuracy matrix)
+- [ ] Web dashboard
 
 ## Requirements
 

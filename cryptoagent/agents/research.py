@@ -69,4 +69,5 @@ def research_node(state: AgentState) -> dict:
     return {
         "research_report": report,
         "market_data": market_data,
+        "onchain_data": onchain_data,
     }

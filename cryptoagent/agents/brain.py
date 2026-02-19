@@ -13,22 +13,32 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are an expert trading strategist and risk manager. You receive a research report \
-(factual market analysis) and a sentiment report (social/news signals). Your job is to \
-synthesize all evidence and make a trading decision.
+(factual market analysis), a sentiment report (social/news signals), on-chain data, and \
+a pre-computed market regime classification. Your job is to synthesize all evidence and \
+make a trading decision.
 
 ## Decision Framework
 
-1. **Identify Market Regime**: Determine if we're in a bull, bear, or sideways market based on \
-the technical data and price action described in the research report.
+1. **Confirm/Override Market Regime**: A regime classifier has pre-computed a regime \
+(bull/bear/sideways) with confidence. You may confirm or override it based on the full picture.
 
 2. **Weight Signals by Regime**:
    - In BEARISH or UNCERTAIN regimes: weight [FACT] signals 70-80%, [SUBJECTIVE/INFERENCE] 20-30%
    - In BULLISH regimes: weight [FACT] signals 50-60%, [SUBJECTIVE/INFERENCE] 40-50%
    - This reflects that narrative/sentiment matters more in bull markets, but hard data dominates in bears.
 
-3. **Risk Assessment**: Consider current portfolio exposure, volatility (ATR), and your confidence level.
+3. **On-Chain Signals**: Incorporate TVL trends, DEX volume, whale activity, and network TPS \
+as leading indicators. Rising TVL + DEX volume = bullish; declining = bearish.
 
-4. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
+4. **Fear & Greed Context**: Use the Fear & Greed Index as a contrarian indicator at extremes \
+(Extreme Fear = potential buy; Extreme Greed = potential sell) and as confirmation in the middle range.
+
+5. **Cross-Trial Memory**: If cross-trial reflections are provided, incorporate lessons learned \
+from prior trading sessions. Avoid repeating past mistakes.
+
+6. **Risk Assessment**: Consider current portfolio exposure, volatility (ATR), and your confidence level.
+
+7. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
    - "action": one of "BUY", "SELL", "HOLD"
    - "asset": the token symbol (e.g., "SOL")
    - "size_pct": percentage of available capital to allocate (0-100, e.g., 10 means 10%)
@@ -49,6 +59,11 @@ def _build_user_prompt(
     portfolio_state: dict,
     market_data: dict,
     reflection_memory: list[str],
+    onchain_data: dict | None = None,
+    market_regime: str = "unknown",
+    regime_confidence: int = 0,
+    fear_greed_index: int = 50,
+    cross_trial_reflections: list[str] | None = None,
 ) -> str:
     portfolio_str = json.dumps(portfolio_state, indent=2, default=str)
     memory_str = "\n".join(reflection_memory[-5:]) if reflection_memory else "No prior decisions."
@@ -60,6 +75,29 @@ def _build_user_prompt(
             f"24h change: {market_data.get('price_change_24h_pct', 'N/A')}%"
         )
 
+    # On-chain section
+    onchain_section = ""
+    if onchain_data and onchain_data.get("source") != "stub":
+        onchain_section = f"\n## On-Chain Data\n{json.dumps(onchain_data, indent=2, default=str)}\n"
+    else:
+        onchain_section = "\n## On-Chain Data\nNot available for this cycle.\n"
+
+    # Regime section
+    regime_section = (
+        f"\n## Pre-Computed Market Regime\n"
+        f"Regime: {market_regime} (confidence: {regime_confidence}/10)\n"
+        f"Fear & Greed Index: {fear_greed_index}/100\n"
+    )
+
+    # Cross-trial reflections
+    cross_trial_str = ""
+    if cross_trial_reflections:
+        cross_trial_str = (
+            "\n## Cross-Trial Reflections (Lessons from Prior Sessions)\n"
+            + "\n".join(f"- {r}" for r in cross_trial_reflections)
+            + "\n"
+        )
+
     return f"""\
 ## Target Asset: {token}
 {price_info}
@@ -69,7 +107,7 @@ def _build_user_prompt(
 
 ## Sentiment Report
 {sentiment_report}
-
+{onchain_section}{regime_section}{cross_trial_str}
 ## Current Portfolio
 {portfolio_str}
 
@@ -83,7 +121,7 @@ Based on all the above evidence, make your trading decision.
 def brain_node(state: AgentState) -> dict:
     """LangGraph node: Brain Agent.
 
-    Synthesizes research + sentiment reports and makes a structured trading decision.
+    Synthesizes research + sentiment + on-chain + regime and makes a structured trading decision.
     """
     agent_config = AgentConfig()
     token = state["token"]
@@ -97,6 +135,11 @@ def brain_node(state: AgentState) -> dict:
         portfolio_state=state.get("portfolio_state", {}),
         market_data=state.get("market_data", {}),
         reflection_memory=state.get("reflection_memory", []),
+        onchain_data=state.get("onchain_data"),
+        market_regime=state.get("market_regime", "unknown"),
+        regime_confidence=state.get("regime_confidence", 0),
+        fear_greed_index=state.get("fear_greed_index", 50),
+        cross_trial_reflections=state.get("cross_trial_reflections"),
     )
 
     logger.info("[Brain Agent] Calling LLM: %s", agent_config.brain_model)

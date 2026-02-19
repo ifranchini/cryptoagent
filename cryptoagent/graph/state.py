@@ -37,3 +37,11 @@ class AgentState(TypedDict, total=False):
     portfolio_state: PortfolioState
     market_data: dict  # Raw OHLCV + indicators
     reflection_memory: list[str]  # Past decisions + outcomes
+
+    # Phase 2 additions
+    onchain_data: dict  # TVL, DEX volume, whale activity
+    market_regime: str  # "bull" | "bear" | "sideways"
+    regime_confidence: int  # 1-10
+    fear_greed_index: int  # 0-100
+    risk_verdict: str  # "proceed" | "halt" | "reduce"
+    cross_trial_reflections: list[str]  # Level 2 reflections from prior runs

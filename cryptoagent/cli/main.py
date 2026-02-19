@@ -44,6 +44,7 @@ def analyze(
     trader_model: Optional[str] = typer.Option(None, "--trader-model", help="LLM model for Trader agent"),
     capital: float = typer.Option(10000.0, "--capital", "-c", help="Initial capital in USD"),
     exchange: str = typer.Option("binance", "--exchange", "-e", help="Exchange for market data"),
+    cycles: int = typer.Option(1, "--cycles", "-n", help="Number of trading cycles to run"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
     """Run the full trading analysis pipeline for a token."""
@@ -72,33 +73,69 @@ def analyze(
         f"[bold]Exchange:[/bold] {config.exchange}\n"
         f"[bold]Capital:[/bold] ${config.initial_capital:,.2f}\n"
         f"[bold]Mode:[/bold] {config.execution_mode}\n"
+        f"[bold]Cycles:[/bold] {cycles}\n"
         f"\n[bold]Models:[/bold]\n"
-        f"  Research:  {config.research_model}\n"
-        f"  Sentiment: {config.sentiment_model}\n"
-        f"  Brain:     {config.brain_model}\n"
-        f"  Trader:    {config.trader_model}",
-        title="CryptoAgent",
+        f"  Research:   {config.research_model}\n"
+        f"  Sentiment:  {config.sentiment_model}\n"
+        f"  Brain:      {config.brain_model}\n"
+        f"  Trader:     {config.trader_model}\n"
+        f"  Reflection: {config.reflection_model}",
+        title="CryptoAgent v0.2.0",
         border_style="blue",
     ))
 
-    # Run pipeline
-    console.print("\n[bold yellow]Running analysis pipeline...[/bold yellow]\n")
-
     try:
         graph = TradingGraph(config=config)
-        result = graph.run(token=token)
+        portfolio_state = None
+        reflection_memory: list[str] = []
+
+        for cycle in range(1, cycles + 1):
+            console.print(f"\n[bold yellow]{'='*60}[/bold yellow]")
+            console.print(f"[bold yellow]  Cycle {cycle}/{cycles}[/bold yellow]")
+            console.print(f"[bold yellow]{'='*60}[/bold yellow]\n")
+
+            result = graph.run(
+                token=token,
+                portfolio_state=portfolio_state,
+                reflection_memory=reflection_memory,
+            )
+
+            # Display results for this cycle
+            _display_results(result, token)
+
+            # Carry forward portfolio and reflections
+            portfolio_state = result.get("portfolio_state")
+            reflection_memory = result.get("reflection_memory", [])
+
+        graph.close()
+
     except Exception as e:
         console.print(f"\n[bold red]Pipeline failed:[/bold red] {e}")
         if verbose:
             console.print_exception()
         sys.exit(1)
 
-    # Display results
-    _display_results(result, token)
-
 
 def _display_results(result: dict, token: str) -> None:
     """Pretty-print pipeline results."""
+    # Regime + Risk verdict
+    regime = result.get("market_regime", "unknown")
+    regime_conf = result.get("regime_confidence", 0)
+    risk_verdict = result.get("risk_verdict", "unknown")
+    fng = result.get("fear_greed_index", "N/A")
+
+    regime_color = {"bull": "green", "bear": "red", "sideways": "yellow"}.get(regime, "white")
+    risk_color = {"proceed": "green", "halt": "red", "reduce": "yellow"}.get(risk_verdict, "white")
+
+    console.print(Panel.fit(
+        f"[bold]Regime:[/bold] [{regime_color}]{regime.upper()}[/{regime_color}] "
+        f"(confidence: {regime_conf}/10)\n"
+        f"[bold]Fear & Greed:[/bold] {fng}/100\n"
+        f"[bold]Risk Verdict:[/bold] [{risk_color}]{risk_verdict.upper()}[/{risk_color}]",
+        title="Market Context",
+        border_style="yellow",
+    ))
+
     # Research report
     console.print(Panel(
         result.get("research_report", "No report"),
@@ -153,6 +190,15 @@ def _display_results(result: dict, token: str) -> None:
             console.print(f"  Net Worth: ${portfolio.get('net_worth', 0):,.2f}")
     elif not executed:
         console.print(f"  Reason: {trade.get('reason', trade.get('validation', {}).get('reason', 'N/A'))}")
+
+    # Reflection summary
+    memory = result.get("reflection_memory", [])
+    if memory:
+        console.print(Panel(
+            memory[-1],
+            title="Latest Reflection",
+            border_style="dim",
+        ))
 
 
 def main() -> None:

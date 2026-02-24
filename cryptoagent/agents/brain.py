@@ -30,18 +30,22 @@ make a trading decision.
 3. **On-Chain Signals**: Incorporate TVL trends, DEX volume, whale activity, and network TPS \
 as leading indicators. Rising TVL + DEX volume = bullish; declining = bearish.
 
-4. **Fear & Greed Context**: Use the Fear & Greed Index as a contrarian indicator at extremes \
+4. **Protocol Fundamentals**: Evaluate protocol health from TVL, fee revenue, governance \
+activity, and developer commits. Strong fundamentals (growing TVL, active dev, healthy \
+governance) support higher conviction. Stale development or declining TVL is a red flag.
+
+5. **Fear & Greed Context**: Use the Fear & Greed Index as a contrarian indicator at extremes \
 (Extreme Fear = potential buy; Extreme Greed = potential sell) and as confirmation in the middle range.
 
-5. **Cross-Trial Memory**: If cross-trial reflections are provided, incorporate lessons learned \
+6. **Cross-Trial Memory**: If cross-trial reflections are provided, incorporate lessons learned \
 from prior trading sessions. Avoid repeating past mistakes.
 
-6. **Risk Assessment**: Consider current portfolio exposure, volatility (ATR), and your confidence level.
+7. **Risk Assessment**: Consider current portfolio exposure, volatility (ATR), and your confidence level.
 
-7. **Macro Context**: Consider the macro regime (risk-on/risk-off) alongside market regime. \
+8. **Macro Context**: Consider the macro regime (risk-on/risk-off) alongside market regime. \
 Divergence between market and macro regimes signals caution.
 
-8. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
+9. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
    - "action": one of "BUY", "SELL", "HOLD"
    - "asset": the token symbol (e.g., "SOL")
    - "size_pct": percentage of available capital to allocate (0-100, e.g., 10 means 10%)
@@ -71,7 +75,11 @@ def _build_user_prompt(
     macro_regime: str = "unknown",
 ) -> str:
     portfolio_str = json.dumps(portfolio_state, indent=2, default=str)
-    memory_str = "\n".join(reflection_memory[-5:]) if reflection_memory else "No prior decisions."
+    memory_str = (
+        "\n".join(reflection_memory[-5:])
+        if reflection_memory
+        else "No prior decisions."
+    )
 
     price_info = ""
     if market_data:
@@ -83,7 +91,9 @@ def _build_user_prompt(
     # On-chain section
     onchain_section = ""
     if onchain_data and onchain_data.get("source") != "stub":
-        onchain_section = f"\n## On-Chain Data\n{json.dumps(onchain_data, indent=2, default=str)}\n"
+        onchain_section = (
+            f"\n## On-Chain Data\n{json.dumps(onchain_data, indent=2, default=str)}\n"
+        )
     else:
         onchain_section = "\n## On-Chain Data\nNot available for this cycle.\n"
 
@@ -142,7 +152,9 @@ def brain_node(state: AgentState) -> dict:
     user_prompt = _build_user_prompt(
         token=token,
         research_report=state.get("research_report", "No research report available."),
-        sentiment_report=state.get("sentiment_report", "No sentiment report available."),
+        sentiment_report=state.get(
+            "sentiment_report", "No sentiment report available."
+        ),
         portfolio_state=state.get("portfolio_state", {}),
         market_data=state.get("market_data", {}),
         reflection_memory=state.get("reflection_memory", []),

@@ -6,10 +6,11 @@ _(none)_
 
 ## Planned
 
-### Phase 3 (Remaining — deferred items)
-- [ ] Protocol fundamentals (token unlocks, governance activity)
-- [ ] Insider intelligence (congress trades, whale wallet tracking via Arkham)
-- [ ] Redis caching layer for data providers
+### Phase 3 (Remaining — deferred, require paid APIs or infra)
+- [ ] Token unlocks (Tokenomist API — paid)
+- [ ] Insider intelligence: congress trades (Quiver Quantitative — paid)
+- [ ] Insider intelligence: whale wallet tracking (Arkham/Nansen — paid)
+- [ ] Redis caching layer (deferred — no benefit for CLI single-cycle runs)
 
 ### Phase 4: Signal Correlation Engine
 - [ ] Signal store — log every signal emitted by every analyst
@@ -65,7 +66,7 @@ _(none)_
 - [x] Multi-cycle CLI (`--cycles N`) with portfolio carry-forward
 - [x] Graceful degradation (real data → stub fallback)
 
-### Phase 3: Macro Intelligence + News
+### Phase 3: Macro Intelligence + News + Protocol Fundamentals
 - [x] FRED API provider (M2 money supply, Fed Funds Rate, Treasury yields, yield curve)
 - [x] Macro regime classifier (risk-on / risk-off / neutral)
 - [x] CryptoPanic RSS news provider (crypto headlines)
@@ -75,6 +76,11 @@ _(none)_
 - [x] Graph wiring (5-agent parallel fan-out)
 - [x] CLI updates (--macro-model flag, Macro Report panel)
 - [x] Graceful degradation without FRED API key
+- [x] Protocol fundamentals via DeFiLlama (protocol TVL, fees, revenue)
+- [x] Governance activity via Snapshot GraphQL (active proposals, voting)
+- [x] Developer activity via GitHub API (commits, health classification)
+- [x] Protocol data integrated into Research Agent prompt
+- [x] Brain Agent signal weighting updated with protocol fundamentals guidance
 
 ## Ideas / Backlog
 

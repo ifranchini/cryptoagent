@@ -50,3 +50,4 @@ class AgentState(TypedDict, total=False):
     macro_report: str  # Macro Analyst agent output
     macro_regime: str  # "risk_on" | "risk_off" | "neutral"
     news_data: dict  # CryptoPanic headlines
+    protocol_data: dict  # Protocol TVL, fees, governance, dev activity

@@ -13,6 +13,9 @@ from cryptoagent.dataflows.news.cryptopanic import get_crypto_news
 from cryptoagent.dataflows.onchain.defillama import get_all_onchain_data
 from cryptoagent.dataflows.onchain.fear_greed import get_fear_greed_index
 from cryptoagent.dataflows.onchain.solana_rpc import get_solana_network_data
+from cryptoagent.dataflows.protocol.defillama_protocol import get_protocol_fundamentals
+from cryptoagent.dataflows.protocol.dev_activity import get_dev_activity
+from cryptoagent.dataflows.protocol.governance import get_governance_activity
 from cryptoagent.dataflows.social.reddit import get_reddit_sentiment
 from cryptoagent.dataflows.social.twitter import get_twitter_sentiment
 from cryptoagent.dataflows import regime
@@ -53,11 +56,21 @@ _NEWS_STUB = {
     "note": "News data unavailable.",
 }
 
+_PROTOCOL_STUB = {
+    "source": "stub",
+    "note": "Protocol fundamentals data unavailable.",
+    "protocols": [],
+    "governance": {},
+    "dev_activity": {},
+}
+
 
 class DataAggregator:
     """Collects data from all sources — real providers with stub fallbacks."""
 
-    def __init__(self, exchange: str = "binance", config: AgentConfig | None = None) -> None:
+    def __init__(
+        self, exchange: str = "binance", config: AgentConfig | None = None
+    ) -> None:
         self.exchange = exchange
         self._config = config or AgentConfig()
 
@@ -85,7 +98,11 @@ class DataAggregator:
             }
         except Exception as e:
             logger.warning("On-chain data fetch failed, using stub: %s", e)
-            return {**_ONCHAIN_STUB, "token": token.upper(), "timestamp": datetime.now(timezone.utc).isoformat()}
+            return {
+                **_ONCHAIN_STUB,
+                "token": token.upper(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     def get_sentiment_data(self, token: str) -> dict:
         """Fetch real sentiment from Reddit, X/Twitter, and Fear & Greed.
@@ -106,7 +123,11 @@ class DataAggregator:
             fng = get_fear_greed_index()
 
             fng_value = fng.get("value", 50) if fng.get("source") != "error" else 50
-            fng_label = fng.get("classification", "Neutral") if fng.get("source") != "error" else "Neutral"
+            fng_label = (
+                fng.get("classification", "Neutral")
+                if fng.get("source") != "error"
+                else "Neutral"
+            )
 
             return {
                 "source": "real",
@@ -119,7 +140,11 @@ class DataAggregator:
             }
         except Exception as e:
             logger.warning("Sentiment data fetch failed, using stub: %s", e)
-            return {**_SENTIMENT_STUB, "token": token.upper(), "timestamp": datetime.now(timezone.utc).isoformat()}
+            return {
+                **_SENTIMENT_STUB,
+                "token": token.upper(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     def get_market_regime(self, market_data: dict) -> dict:
         """Classify market regime from technical indicators."""
@@ -134,7 +159,10 @@ class DataAggregator:
             fred_data = fred_get_all(self._config.fred_api_key)
             if fred_data.get("source") == "error":
                 logger.warning("FRED returned error: %s", fred_data.get("message"))
-                stub = {**_MACRO_STUB, "timestamp": datetime.now(timezone.utc).isoformat()}
+                stub = {
+                    **_MACRO_STUB,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
                 return stub
             macro_regime = classify_macro(fred_data)
             return {
@@ -155,3 +183,30 @@ class DataAggregator:
         except Exception as e:
             logger.warning("News data fetch failed, using stub: %s", e)
             return {**_NEWS_STUB, "token": token.upper()}
+
+    def get_protocol_data(self, token: str) -> dict:
+        """Fetch protocol fundamentals: TVL/fees, governance, dev activity.
+
+        Combines DeFiLlama protocol data, Snapshot governance, and GitHub metrics.
+        Falls back to stub on any failure.
+        """
+        logger.info("Fetching protocol data for %s", token)
+        try:
+            protocol = get_protocol_fundamentals(
+                token,
+                self._config.defillama_base_url,
+            )
+            governance = get_governance_activity(token)
+            dev = get_dev_activity(token)
+
+            return {
+                "source": "real",
+                "token": token.upper(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "protocol_fundamentals": protocol,
+                "governance": governance,
+                "dev_activity": dev,
+            }
+        except Exception as e:
+            logger.warning("Protocol data fetch failed, using stub: %s", e)
+            return {**_PROTOCOL_STUB, "token": token.upper()}

@@ -80,7 +80,8 @@ class TradingGraph:
             initial_capital=self.config.initial_capital,
         )
         self._aggregator = DataAggregator(
-            exchange=self.config.exchange, config=self.config,
+            exchange=self.config.exchange,
+            config=self.config,
         )
 
     def run(
@@ -147,25 +148,30 @@ class TradingGraph:
             "macro_report": "",
             "macro_regime": "unknown",
             "news_data": {},
+            "protocol_data": {},
         }
 
         # If risk sentinel halts, force HOLD without running the pipeline
         if risk_verdict == "halt":
             logger.warning("Risk Sentinel halted pipeline: %s", pre_risk["reasons"])
-            hold_decision = json.dumps({
-                "action": "HOLD",
-                "asset": token.upper(),
-                "size_pct": 0,
-                "confidence": 1,
-                "regime": market_regime,
-                "rationale": f"Risk Sentinel halt: {'; '.join(pre_risk['reasons'])}",
-            })
+            hold_decision = json.dumps(
+                {
+                    "action": "HOLD",
+                    "asset": token.upper(),
+                    "size_pct": 0,
+                    "confidence": 1,
+                    "regime": market_regime,
+                    "rationale": f"Risk Sentinel halt: {'; '.join(pre_risk['reasons'])}",
+                }
+            )
             initial_state["brain_decision"] = hold_decision
-            initial_state["trade_result"] = json.dumps({
-                "executed": False,
-                "reason": f"Risk Sentinel halt: {'; '.join(pre_risk['reasons'])}",
-                "brain_decision": json.loads(hold_decision),
-            })
+            initial_state["trade_result"] = json.dumps(
+                {
+                    "executed": False,
+                    "reason": f"Risk Sentinel halt: {'; '.join(pre_risk['reasons'])}",
+                    "brain_decision": json.loads(hold_decision),
+                }
+            )
             return initial_state
 
         # --- RUN PIPELINE ---

@@ -5,7 +5,7 @@ Multi-agent LLM trading system. 5 specialized agents collaborate to analyze mark
 ## Architecture
 
 ```
-DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic)
+DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic + Snapshot + GitHub)
         │
   ┌─────┼─────┐
   ▼     ▼     ▼
@@ -13,7 +13,7 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
   │     │     │
   └─────┼─────┘
         ▼
-      Brain                ← best reasoning LLM (+ regime, on-chain, macro, reflections)
+      Brain                ← best reasoning LLM (+ regime, on-chain, macro, protocol, reflections)
         │
         ▼
       Trader               ← fast LLM → paper/live execution
@@ -24,10 +24,10 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
 
 | Agent | Role | Default Model |
 |-------|------|---------------|
-| **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + macro | `deepseek/deepseek-chat-v3-0324` |
+| **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + macro + protocol fundamentals | `deepseek/deepseek-chat-v3-0324` |
 | **Sentiment** | Reddit posts, X/Twitter sentiment, Fear & Greed Index, crypto news | `deepseek/deepseek-chat-v3-0324` |
 | **Macro** | FRED macro data (M2, Fed rate, yields, yield curve), macro regime | `deepseek/deepseek-chat-v3-0324` |
-| **Brain** | Regime-aware signal weighting, on-chain + macro + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
+| **Brain** | Regime-aware signal weighting, on-chain + macro + protocol fundamentals + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
 | **Trader** | Execution validation, order routing, paper trading | `deepseek/deepseek-chat-v3-0324` |
 
 ## Key Design Choices
@@ -35,6 +35,7 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
 - **Model-agnostic** — [LiteLLM](https://github.com/BerriAI/litellm) as unified gateway. Supports 100+ providers (OpenAI, Anthropic, DeepSeek, Ollama, OpenRouter, etc.). Each agent can use a different model.
 - **LangGraph orchestration** — Research + Sentiment + Macro run in parallel, all three feed into Brain, then Trader executes. Clean 5-node DAG.
 - **Real on-chain data** — DeFiLlama (TVL, DEX volume, fees) + Solana RPC (TPS, whale activity). Graceful degradation to stubs on API failure.
+- **Protocol fundamentals** — DeFiLlama (per-protocol TVL, fees, revenue), Snapshot GraphQL (governance proposals), GitHub API (commit activity, health). All free, no auth required.
 - **Real social sentiment** — Reddit JSON API (r/solana, r/cryptocurrency) + X/Twitter (scraping proxy or official API v2). Fear & Greed Index from Alternative.me.
 - **Two-level reflection memory** — Level 1 (per-cycle lessons) + Level 2 (cross-trial strategic reviews). Stored in SQLite, injected into Brain prompt.
 - **Risk Sentinel** — Pre/post pipeline threshold checks (daily loss, drawdown, volatility spikes). Can halt trading or reduce position sizes.
@@ -139,8 +140,12 @@ cryptoagent/
 │   ├── macro/
 │   │   ├── fred.py                # FRED API: M2, Fed rate, Treasury yields
 │   │   └── classifier.py          # Macro regime classifier (risk-on/risk-off)
-│   └── news/
-│       └── cryptopanic.py         # CryptoPanic RSS: crypto headlines
+│   ├── news/
+│   │   └── cryptopanic.py         # CryptoPanic RSS: crypto headlines
+│   └── protocol/
+│       ├── defillama_protocol.py  # Per-protocol TVL, fees, revenue
+│       ├── governance.py          # Snapshot GraphQL: governance proposals
+│       └── dev_activity.py        # GitHub API: commit activity, health
 ├── graph/
 │   ├── state.py                   # AgentState TypedDict
 │   └── builder.py                 # LangGraph wiring + TradingGraph (pre/post pipeline)
@@ -187,6 +192,10 @@ cryptoagent/
 - [x] 5th Macro Analyst agent (parallel with Research + Sentiment)
 - [x] Brain agent macro context (both market + macro regimes)
 - [x] Graceful degradation (real FRED data -> stub fallback without API key)
+- [x] Protocol fundamentals via DeFiLlama (per-protocol TVL, fees, revenue)
+- [x] Governance activity via Snapshot GraphQL (active proposals, voting)
+- [x] Developer activity via GitHub API (commits, health classification)
+- [x] Protocol data integrated into Research Agent + Brain Agent signal weighting
 
 ### Planned
 - [ ] Equity support (Alpaca data provider + broker execution)

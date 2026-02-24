@@ -147,7 +147,7 @@ pytest -q                               # test
 ## Architecture
 
 ```
-DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic)
+DATA LAYER (CCXT + DeFiLlama + Solana RPC + Reddit + X/Twitter + Fear & Greed + FRED + CryptoPanic + Snapshot + GitHub)
         │
   ┌─────┼─────┐
   ▼     ▼     ▼
@@ -155,7 +155,7 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
   │     │     │
   └─────┼─────┘
         ▼
-      Brain                ← best reasoning LLM (+ regime, macro, on-chain, reflections)
+      Brain                ← best reasoning LLM (+ regime, macro, on-chain, protocol, reflections)
         │
         ▼
       Trader               ← fast LLM → paper execution
@@ -172,7 +172,7 @@ See @docs/ARCHITECTURE.md for the full long-term vision.
 |----------|---------|
 | `cryptoagent/config.py` | Pydantic settings (`CA_` env prefix) |
 | `cryptoagent/agents/` | 5 agent implementations (research, sentiment, macro, brain, trader) |
-| `cryptoagent/dataflows/` | Data providers (market, onchain, social, macro, news, regime) |
+| `cryptoagent/dataflows/` | Data providers (market, onchain, social, macro, news, protocol, regime) |
 | `cryptoagent/graph/builder.py` | LangGraph wiring + pre/post pipeline |
 | `cryptoagent/persistence/` | SQLite trade + reflection storage |
 | `cryptoagent/reflection/manager.py` | Two-level reflection system |

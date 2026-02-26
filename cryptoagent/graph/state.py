@@ -51,3 +51,6 @@ class AgentState(TypedDict, total=False):
     macro_regime: str  # "risk_on" | "risk_off" | "neutral"
     news_data: dict  # CryptoPanic headlines
     protocol_data: dict  # Protocol TVL, fees, governance, dev activity
+
+    # Phase 4 additions
+    signal_report: str  # Signal accuracy report for Brain context

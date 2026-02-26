@@ -45,7 +45,12 @@ from prior trading sessions. Avoid repeating past mistakes.
 8. **Macro Context**: Consider the macro regime (risk-on/risk-off) alongside market regime. \
 Divergence between market and macro regimes signals caution.
 
-9. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
+9. **Signal Accuracy**: If a Signal Accuracy Report is provided, weight signals with higher \
+historical accuracy more heavily in your analysis. Signals with low hit rates should be \
+treated with skepticism. Pay attention to timeframe-specific accuracy — a signal reliable \
+at 7d may not be useful for short-term decisions.
+
+10. **Decision Output**: You MUST respond with a JSON object containing exactly these fields:
    - "action": one of "BUY", "SELL", "HOLD"
    - "asset": the token symbol (e.g., "SOL")
    - "size_pct": percentage of available capital to allocate (0-100, e.g., 10 means 10%)
@@ -73,6 +78,7 @@ def _build_user_prompt(
     cross_trial_reflections: list[str] | None = None,
     macro_report: str = "",
     macro_regime: str = "unknown",
+    signal_report: str = "",
 ) -> str:
     portfolio_str = json.dumps(portfolio_state, indent=2, default=str)
     memory_str = (
@@ -110,6 +116,11 @@ def _build_user_prompt(
         f"Fear & Greed Index: {fear_greed_index}/100\n"
     )
 
+    # Signal accuracy report
+    signal_section = ""
+    if signal_report:
+        signal_section = f"\n## Signal Accuracy Report\n{signal_report}\n"
+
     # Cross-trial reflections
     cross_trial_str = ""
     if cross_trial_reflections:
@@ -128,7 +139,7 @@ def _build_user_prompt(
 
 ## Sentiment Report
 {sentiment_report}
-{macro_section}{onchain_section}{regime_section}{cross_trial_str}
+{macro_section}{onchain_section}{regime_section}{signal_section}{cross_trial_str}
 ## Current Portfolio
 {portfolio_str}
 
@@ -165,6 +176,7 @@ def brain_node(state: AgentState) -> dict:
         cross_trial_reflections=state.get("cross_trial_reflections"),
         macro_report=state.get("macro_report", ""),
         macro_regime=state.get("macro_regime", "unknown"),
+        signal_report=state.get("signal_report", ""),
     )
 
     logger.info("[Brain Agent] Calling LLM: %s", agent_config.brain_model)

@@ -12,12 +12,11 @@ _(none)_
 - [ ] Insider intelligence: whale wallet tracking (Arkham/Nansen — paid)
 - [ ] Redis caching layer (deferred — no benefit for CLI single-cycle runs)
 
-### Phase 4: Signal Correlation Engine
-- [ ] Signal store — log every signal emitted by every analyst
-- [ ] Price store — OHLCV at multiple timeframes
-- [ ] Correlation engine — compute accuracy by signal x timeframe x regime
-- [ ] Signal Correlation Report injected into reasoning context
-- [ ] Ablation tests — disable each analyst, measure P&L impact
+### Phase 4: Signal Correlation Engine (Remaining — requires signal history)
+- [ ] Ablation tests — disable each analyst, measure P&L impact (needs ~50+ cycles)
+- [ ] Weight optimizer — auto-adjust signal weights based on accuracy
+- [ ] Confluence detection — cross-signal pattern analysis
+- [ ] Lag analysis — identify signal lead times
 
 ### Phase 5: Backtesting + Agent Tournament
 - [ ] Historical data loader + replay engine
@@ -81,6 +80,14 @@ _(none)_
 - [x] Developer activity via GitHub API (commits, health classification)
 - [x] Protocol data integrated into Research Agent prompt
 - [x] Brain Agent signal weighting updated with protocol fundamentals guidance
+
+### Phase 4: Signal Correlation Engine
+- [x] Signal extractor — extract 17 structured signals from AgentState (5 sources)
+- [x] Signal + price persistence — 3 new SQLite tables (signals, price_snapshots, signal_outcomes)
+- [x] Signal evaluator — evaluate outcomes at 4h/24h/7d timeframes against actual price
+- [x] Signal accuracy report — generate hit-rate report injected into Brain context
+- [x] Pipeline integration — pre-pipeline evaluation + post-pipeline extraction in TradingGraph.run()
+- [x] Brain Agent updated with signal accuracy guidance in system prompt
 
 ## Ideas / Backlog
 

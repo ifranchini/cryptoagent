@@ -20,6 +20,10 @@ from cryptoagent.persistence.database import Database
 from cryptoagent.persistence.trade_logger import TradeLogger
 from cryptoagent.reflection.manager import ReflectionManager
 from cryptoagent.risk.sentinel import RiskSentinel
+from cryptoagent.signals.evaluator import evaluate_pending_signals
+from cryptoagent.signals.extractor import extract_signals
+from cryptoagent.signals.logger import SignalLogger
+from cryptoagent.signals.report import generate_signal_report
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,7 @@ class TradingGraph:
             model=self.config.reflection_model,
             cycle_length=self.config.reflection_cycle_length,
         )
+        self._signal_logger = SignalLogger(self._db)
         self._risk_sentinel = RiskSentinel(
             max_daily_loss_pct=self.config.max_daily_loss_pct,
             max_drawdown_pct=self.config.max_drawdown_pct,
@@ -119,6 +124,7 @@ class TradingGraph:
         # 3. Compute market regime from latest market data (quick fetch for regime only)
         market_regime = "unknown"
         regime_confidence = 0
+        market_snapshot: dict = {}
         try:
             market_snapshot = self._aggregator.get_market_data(token.upper())
             regime_result = self._aggregator.get_market_regime(market_snapshot)
@@ -126,6 +132,22 @@ class TradingGraph:
             regime_confidence = regime_result.get("confidence", 0)
         except Exception as e:
             logger.warning("Regime classification failed: %s", e)
+
+        # 4. Evaluate pending signals from prior cycles + generate report
+        signal_report = ""
+        current_price = (
+            market_snapshot.get("current_price", 0) if market_snapshot else 0
+        )
+        if current_price > 0:
+            try:
+                evaluated = evaluate_pending_signals(
+                    self._db, token.upper(), current_price
+                )
+                if evaluated:
+                    logger.info("Evaluated %d signal outcomes", evaluated)
+                signal_report = generate_signal_report(self._db, token.upper())
+            except Exception as e:
+                logger.warning("Signal evaluation/report failed: %s", e)
 
         # Build initial state
         initial_state: AgentState = {
@@ -149,6 +171,7 @@ class TradingGraph:
             "macro_regime": "unknown",
             "news_data": {},
             "protocol_data": {},
+            "signal_report": signal_report,
         }
 
         # If risk sentinel halts, force HOLD without running the pipeline
@@ -195,6 +218,23 @@ class TradingGraph:
         # 6. Log trade to SQLite
         if trade_result.get("executed"):
             self._trade_logger.log_trade(trade_result)
+
+        # 6b. Extract and log signals from this cycle
+        try:
+            plain_state = dict(result)
+            signals = extract_signals(plain_state)
+            market = plain_state.get("market_data") or {}
+            price = float(market.get("current_price", 0))
+            volume = market.get("volume_24h")
+            if signals and price > 0:
+                self._signal_logger.log_signals(
+                    token=token.upper(),
+                    signals=signals,
+                    price=price,
+                    volume_24h=volume,
+                )
+        except Exception as e:
+            logger.warning("Signal extraction/logging failed: %s", e)
 
         # 7. Generate Level 1 reflection
         regime = brain_decision.get("regime", market_regime)

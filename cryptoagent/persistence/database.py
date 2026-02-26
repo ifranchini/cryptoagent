@@ -31,6 +31,36 @@ CREATE TABLE IF NOT EXISTS reflections (
     regime TEXT,
     performance_summary TEXT
 );
+
+CREATE TABLE IF NOT EXISTS signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    token TEXT NOT NULL,
+    name TEXT NOT NULL,
+    source TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    raw_value REAL
+);
+
+CREATE TABLE IF NOT EXISTS price_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    token TEXT NOT NULL,
+    price REAL NOT NULL,
+    volume_24h REAL
+);
+
+CREATE TABLE IF NOT EXISTS signal_outcomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id INTEGER NOT NULL REFERENCES signals(id),
+    timeframe TEXT NOT NULL,
+    price_at_signal REAL NOT NULL,
+    price_at_eval REAL NOT NULL,
+    price_change_pct REAL NOT NULL,
+    direction_correct INTEGER NOT NULL,
+    evaluated_at TEXT NOT NULL
+);
 """
 
 

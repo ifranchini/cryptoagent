@@ -4,4 +4,11 @@ __pycache__/
 .venv/
 dist/
 *.egg-info/
-data/
+/data/
+.DS_Store
+.coverage
+
+# Dashboard
+dashboard/node_modules/
+dashboard/.next/
+dashboard/.env.local

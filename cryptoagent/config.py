@@ -30,6 +30,7 @@ class AgentConfig(BaseSettings):
 
     # Persistence
     db_path: str = "data/cryptoagent.db"
+    database_url: str = ""  # PostgreSQL URL; overrides db_path when set
 
     # Reflection
     reflection_model: str = "openai/gpt-4o-mini"

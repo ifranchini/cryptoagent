@@ -70,7 +70,8 @@ class TradingGraph:
         self._graph = build_graph().compile()
 
         # Phase 2: persistence + risk + reflection
-        self._db = Database(self.config.db_path)
+        db_target = self.config.database_url or self.config.db_path
+        self._db = Database(db_target)
         self._trade_logger = TradeLogger(self._db)
         self._reflection_mgr = ReflectionManager(
             db=self._db,

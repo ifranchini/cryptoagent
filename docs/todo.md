@@ -112,10 +112,32 @@ _(none)_
 - [x] VISION.md created with future plans (debate, multi-strategy, backtesting, live execution)
 - [x] CLAUDE.md updated with VISION.md reference
 
+### Web Dashboard
+- [x] Next.js 15 app with shadcn/ui, Tailwind CSS, dark theme
+- [x] Drizzle ORM schema matching Python's 5 SQLite tables
+- [x] Neon serverless PostgreSQL connection
+- [x] Overview page (portfolio summary, stats, recent trades/reflections)
+- [x] Trades page (full table with detail drawer)
+- [x] Signals page (accuracy charts + history table)
+- [x] Reflections page (L1/L2 with regime tags)
+- [x] AI chat (Vercel AI SDK + OpenRouter, context-aware)
+- [x] Python dual-DB support (SQLite + PostgreSQL via CA_DATABASE_URL)
+- [x] FastAPI sidecar for pipeline run trigger
+- [x] Run trigger button in dashboard UI
+
+### Dashboard E2E Tests
+- [x] Playwright setup (config, scripts, .gitignore)
+- [x] Navigation tests — sidebar links, active state, cross-page routing (7 tests)
+- [x] Overview tests — stat cards, recent trades/reflections, run trigger (7 tests)
+- [x] Trades tests — table headers, rows, detail panel click interaction (5 tests)
+- [x] Signals tests — accuracy chart, signal history table (4 tests)
+- [x] Reflections tests — L1/L2 sections, card content (4 tests)
+- [x] Chat tests — empty state, input, suggestions, mocked submit (5 tests)
+- [x] 32 E2E tests total, all passing, screenshots captured per test
+
 ## Ideas / Backlog
 
 - Equity support (Alpaca data provider + broker execution)
-- Web dashboard for monitoring
 - Ollama support for local model backtesting
 - FS-ReasoningAgent fact/subjectivity weighting improvements
 - Bull/bear debate mechanism (from TradingAgents architecture)

@@ -115,13 +115,22 @@ ruff check cryptoagent/                 # lint
 ruff format cryptoagent/                # format
 ty check                                # type check
 pytest -q                               # test
+
+# Dashboard
+cd dashboard && npm run dev             # dev server at localhost:3000
+cd dashboard && npm run db:push         # push schema to Neon
+cd dashboard && npx playwright test     # E2E tests (headless)
+cd dashboard && npx playwright test --ui # E2E tests (interactive UI)
+
+# Sidecar
+uvicorn api.server:app --reload         # FastAPI at localhost:8000
 ```
 
 ### Always allowed (run without asking)
 
 - **Git read ops**: `git status`, `git log`, `git branch`, `git diff`, `git remote -v`
 - **File reads**: reading any file within the cryptoagent project
-- **Quality tools**: `ruff check`, `ruff format`, `ty check`, `pytest`
+- **Quality tools**: `ruff check`, `ruff format`, `ty check`, `pytest`, `npx playwright test`
 - **Running the agent**: `uv run python -m cryptoagent.cli.main`
 
 ### Ask user first
@@ -174,12 +183,16 @@ See @docs/ARCHITECTURE.md for the full long-term vision.
 | `cryptoagent/agents/` | 5 agent implementations (research, sentiment, macro, brain, trader) |
 | `cryptoagent/dataflows/` | Data providers (market, onchain, social, macro, news, protocol, regime) |
 | `cryptoagent/graph/builder.py` | LangGraph wiring + pre/post pipeline |
-| `cryptoagent/persistence/` | SQLite trade + reflection storage |
+| `cryptoagent/persistence/` | SQLite/PostgreSQL trade + reflection storage |
 | `cryptoagent/reflection/manager.py` | Two-level reflection system |
 | `cryptoagent/risk/sentinel.py` | Risk threshold checks |
 | `cryptoagent/cli/main.py` | Typer CLI entry point |
 | `.env` / `.env.example` | API keys and model config |
 | `data/cryptoagent.db` | SQLite database (gitignored) |
+| `dashboard/` | Next.js web dashboard (shadcn/ui + Drizzle + Neon) |
+| `dashboard/lib/schema.ts` | Drizzle ORM schema (mirrors Python tables) |
+| `dashboard/app/api/` | API routes (data, chat, run trigger) |
+| `api/server.py` | FastAPI sidecar for pipeline execution |
 
 ## Task Tracking
 

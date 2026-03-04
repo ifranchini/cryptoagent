@@ -19,15 +19,15 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
       Trader               ← fast LLM → paper/live execution
 ```
 
-**Pre-pipeline:** Risk Sentinel pre-check, market regime classification, cross-trial reflection loading.
-**Post-pipeline:** Risk Sentinel post-check, trade logging (SQLite), Level 1/2 reflection generation.
+**Pre-pipeline:** Risk Sentinel pre-check, market regime classification, cross-trial reflection loading, signal evaluation.
+**Post-pipeline:** Risk Sentinel post-check, trade logging (SQLite/PostgreSQL), Level 1/2 reflection generation, signal extraction.
 
 | Agent | Role | Default Model |
 |-------|------|---------------|
-| **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + macro + protocol fundamentals | `deepseek/deepseek-chat-v3-0324` |
+| **Research** | Market data + TA indicators + on-chain (DeFiLlama, Solana RPC) + protocol fundamentals | `deepseek/deepseek-chat-v3-0324` |
 | **Sentiment** | Reddit posts, X/Twitter sentiment, Fear & Greed Index, crypto news | `deepseek/deepseek-chat-v3-0324` |
 | **Macro** | FRED macro data (M2, Fed rate, yields, yield curve), macro regime | `deepseek/deepseek-chat-v3-0324` |
-| **Brain** | Regime-aware signal weighting, on-chain + macro + protocol fundamentals + cross-trial reflections, trade decision | `anthropic/claude-sonnet-4` |
+| **Brain** | Regime-aware signal weighting, cross-trial reflections, signal accuracy, trade decision | `anthropic/claude-sonnet-4` |
 | **Trader** | Execution validation, order routing, paper trading | `deepseek/deepseek-chat-v3-0324` |
 
 ## Key Design Choices
@@ -37,6 +37,7 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
 - **Real on-chain data** — DeFiLlama (TVL, DEX volume, fees) + Solana RPC (TPS, whale activity). Graceful degradation to stubs on API failure.
 - **Protocol fundamentals** — DeFiLlama (per-protocol TVL, fees, revenue), Snapshot GraphQL (governance proposals), GitHub API (commit activity, health). All free, no auth required.
 - **Real social sentiment** — Reddit JSON API (r/solana, r/cryptocurrency) + X/Twitter (scraping proxy or official API v2). Fear & Greed Index from Alternative.me.
+- **Signal correlation engine** — Extracts 17 structured signals per cycle, tracks outcomes at 4h/24h/7d, generates accuracy reports injected into Brain context.
 - **Two-level reflection memory** — Level 1 (per-cycle lessons) + Level 2 (cross-trial strategic reviews). Stored in SQLite, injected into Brain prompt.
 - **Risk Sentinel** — Pre/post pipeline threshold checks (daily loss, drawdown, volatility spikes). Can halt trading or reduce position sizes.
 - **Market regime detector** — Pure numeric heuristic (price vs SMA50, RSI, MACD histogram). Regime + confidence fed to Brain.
@@ -44,9 +45,10 @@ Research Sentiment Macro  ← cheap/fast LLMs (parallel)
 
 ## Quick Start
 
+### Pipeline (CLI)
+
 ```bash
 # Install
-cd cryptoagent
 uv sync
 
 # Configure (need at least one LLM provider key)
@@ -58,7 +60,58 @@ uv run python -m cryptoagent.cli.main SOL
 
 # Multi-cycle with portfolio carry-forward
 uv run python -m cryptoagent.cli.main SOL --cycles 6
+
+# Override models via CLI
+uv run python -m cryptoagent.cli.main SOL \
+  --brain-model "openrouter/anthropic/claude-sonnet-4" \
+  --capital 50000 --cycles 3 -v
 ```
+
+### Web Dashboard
+
+```bash
+cd dashboard
+npm install
+npm run dev             # http://localhost:3000
+```
+
+Requires a Neon PostgreSQL database. Set `DATABASE_URL` in `dashboard/.env.local`:
+
+```bash
+DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
+```
+
+Push the schema, then seed data by running pipeline cycles with `CA_DATABASE_URL` set to the same connection string.
+
+```bash
+npm run db:push         # push Drizzle schema to Neon
+```
+
+### FastAPI Sidecar (run trigger from dashboard)
+
+```bash
+uvicorn api.server:app --reload   # http://localhost:8000
+```
+
+Set `SIDECAR_URL=http://localhost:8000` in `dashboard/.env.local` to enable the "Run Pipeline" button.
+
+## Testing
+
+```bash
+# Python unit/integration tests (126 tests)
+pytest -q
+
+# Dashboard E2E tests (32 tests, requires dev server running)
+cd dashboard && npx playwright test
+
+# Dashboard E2E with visible browser
+cd dashboard && npx playwright test --headed
+
+# Dashboard E2E interactive UI
+cd dashboard && npx playwright test --ui
+```
+
+Install Playwright browsers on first run: `cd dashboard && npx playwright install chromium`
 
 ## Configuration
 
@@ -81,8 +134,9 @@ CA_EXCHANGE=binance
 CA_EXECUTION_MODE=paper
 CA_INITIAL_CAPITAL=10000.0
 
-# Persistence
+# Persistence (SQLite default, PostgreSQL for dashboard sync)
 CA_DB_PATH=data/cryptoagent.db
+CA_DATABASE_URL=                      # set to Neon URL for dual-write
 
 # Reflection
 CA_REFLECTION_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
@@ -98,113 +152,61 @@ CA_TWITTER_SCRAPE_URL=          # Scraping proxy (optional)
 CA_REDDIT_SUBREDDITS=["solana","cryptocurrency"]
 ```
 
-### CLI Options
-
-```bash
-uv run python -m cryptoagent.cli.main SOL \
-  --brain-model "openrouter/anthropic/claude-sonnet-4" \
-  --research-model "openrouter/deepseek/deepseek-chat-v3-0324" \
-  --macro-model "openrouter/deepseek/deepseek-chat-v3-0324" \
-  --capital 50000 \
-  --cycles 3 \
-  --asset-type crypto \
-  --exchange binance \
-  -v  # verbose logging
-```
-
 ## Project Structure
 
 ```
 cryptoagent/
 ├── config.py                      # Pydantic settings (per-agent models, risk, social, etc.)
-├── llm/
-│   └── client.py                  # LiteLLM wrapper (call_llm, call_llm_json)
-├── agents/
-│   ├── research.py                # Market data + TA + on-chain analysis
+├── llm/client.py                  # LiteLLM wrapper (call_llm, call_llm_json)
+├── agents/                        # 5 LLM-powered agents
+│   ├── research.py                # Market data + TA + on-chain + protocol analysis
 │   ├── sentiment.py               # Reddit + Twitter + Fear & Greed + news sentiment
 │   ├── macro.py                   # FRED macro data + regime analysis
 │   ├── brain.py                   # Regime-aware reasoning + trade decisions
 │   └── trader.py                  # Execution validation + routing
-├── dataflows/
-│   ├── aggregator.py              # Unified data interface (real providers + stub fallbacks)
+├── dataflows/                     # Data providers
+│   ├── aggregator.py              # Unified data interface (real + stub fallbacks)
 │   ├── regime.py                  # Market regime classifier (bull/bear/sideways)
-│   ├── market/
-│   │   └── ccxt_provider.py       # OHLCV + 12 technical indicators via CCXT
-│   ├── onchain/
-│   │   ├── defillama.py           # DeFiLlama: TVL, DEX volume, fees
-│   │   ├── solana_rpc.py          # Solana RPC: TPS, whale activity
-│   │   └── fear_greed.py          # Alternative.me Fear & Greed Index
-│   ├── social/
-│   │   ├── reddit.py              # Reddit JSON API (no auth needed)
-│   │   └── twitter.py             # X/Twitter (scraping proxy or official API v2)
-│   ├── macro/
-│   │   ├── fred.py                # FRED API: M2, Fed rate, Treasury yields
-│   │   └── classifier.py          # Macro regime classifier (risk-on/risk-off)
-│   ├── news/
-│   │   └── cryptopanic.py         # CryptoPanic RSS: crypto headlines
-│   └── protocol/
-│       ├── defillama_protocol.py  # Per-protocol TVL, fees, revenue
-│       ├── governance.py          # Snapshot GraphQL: governance proposals
-│       └── dev_activity.py        # GitHub API: commit activity, health
+│   ├── market/ccxt_provider.py    # OHLCV + 12 TA indicators via CCXT
+│   ├── onchain/                   # DeFiLlama, Solana RPC, Fear & Greed
+│   ├── social/                    # Reddit, Twitter
+│   ├── macro/                     # FRED API, macro regime classifier
+│   ├── news/cryptopanic.py        # CryptoPanic RSS headlines
+│   └── protocol/                  # DeFiLlama protocol, Snapshot, GitHub
 ├── graph/
 │   ├── state.py                   # AgentState TypedDict
-│   └── builder.py                 # LangGraph wiring + TradingGraph (pre/post pipeline)
+│   └── builder.py                 # LangGraph wiring + TradingGraph
 ├── execution/
 │   ├── paper_trade.py             # Paper trading simulator (fees, P&L)
 │   └── router.py                  # Routes to paper/live backends
 ├── persistence/
-│   ├── database.py                # SQLite connection manager + schema
+│   ├── database.py                # SQLite/PostgreSQL connection + schema
 │   ├── trade_logger.py            # Trade history CRUD
-│   └── reflection_store.py        # Reflection memory CRUD
-├── reflection/
-│   └── manager.py                 # Level 1 (per-cycle) + Level 2 (cross-trial) reflections
-├── risk/
-│   └── sentinel.py                # Pre/post pipeline risk checks
-└── cli/
-    └── main.py                    # Typer CLI (--cycles for multi-cycle runs)
+│   ├── reflection_store.py        # Reflection memory CRUD
+│   └── signals.py                 # Signal + price snapshot CRUD
+├── reflection/manager.py          # Level 1 + Level 2 reflections
+├── risk/sentinel.py               # Pre/post pipeline risk checks
+├── signals/
+│   ├── extractor.py               # Extract 17 signals from AgentState
+│   ├── evaluator.py               # Evaluate outcomes at 4h/24h/7d
+│   ├── logger.py                  # Persist signals + price snapshots
+│   └── report.py                  # Accuracy report for Brain
+├── cli/main.py                    # Typer CLI entry point
+└── tests/                         # 126 unit/integration tests
+
+dashboard/                         # Next.js web dashboard
+├── app/                           # Pages: overview, trades, signals, reflections, chat
+├── components/                    # UI components (shadcn/ui + custom)
+├── lib/                           # Drizzle schema, DB connection, types
+├── e2e/                           # 32 Playwright E2E tests
+└── api/                           # API routes (data, chat, run trigger)
+
+api/server.py                      # FastAPI sidecar for pipeline execution
 ```
-
-## Current Status
-
-### Phase 1 (Complete)
-- [x] 4-agent pipeline (Research → Sentiment → Brain → Trader)
-- [x] Real market data via CCXT (SOL/USDT from Binance, 12 TA indicators)
-- [x] LiteLLM integration (any provider, per-agent model config)
-- [x] Paper trading with fee simulation
-- [x] LangGraph parallel execution (Research + Sentiment)
-- [x] CLI with full model override flags
-
-### Phase 2 (Complete)
-- [x] Real on-chain data (DeFiLlama TVL/DEX volume/fees, Solana RPC TPS/whale activity)
-- [x] Real social sentiment (Reddit JSON API, X/Twitter dual-backend)
-- [x] Fear & Greed Index (Alternative.me)
-- [x] Market regime classifier (bull/bear/sideways with confidence score)
-- [x] Two-level reflection memory (per-cycle + cross-trial strategic reviews)
-- [x] SQLite persistence (trades + reflections)
-- [x] Risk Sentinel (daily loss limit, drawdown cap, volatility spike detection)
-- [x] Multi-cycle CLI (`--cycles N`) with portfolio carry-forward
-- [x] Graceful degradation (real data → stub fallback on API failure)
-
-### Phase 3 (Complete)
-- [x] Real macro data via FRED API (M2 money supply, Fed Funds Rate, Treasury yields, yield curve)
-- [x] Macro regime classifier (risk-on / risk-off / neutral heuristic)
-- [x] CryptoPanic RSS news integration (crypto headlines into Sentiment agent)
-- [x] 5th Macro Analyst agent (parallel with Research + Sentiment)
-- [x] Brain agent macro context (both market + macro regimes)
-- [x] Graceful degradation (real FRED data -> stub fallback without API key)
-- [x] Protocol fundamentals via DeFiLlama (per-protocol TVL, fees, revenue)
-- [x] Governance activity via Snapshot GraphQL (active proposals, voting)
-- [x] Developer activity via GitHub API (commits, health classification)
-- [x] Protocol data integrated into Research Agent + Brain Agent signal weighting
-
-### Planned
-- [ ] Equity support (Alpaca data provider + broker execution)
-- [ ] Live trading execution
-- [ ] Correlation engine (historical signal accuracy matrix)
-- [ ] Web dashboard
 
 ## Requirements
 
 - Python >= 3.13
 - [uv](https://github.com/astral-sh/uv) for package management
+- Node.js >= 18 (for dashboard)
 - At least one LLM API key (OpenAI, Anthropic, DeepSeek, OpenRouter, or local Ollama)

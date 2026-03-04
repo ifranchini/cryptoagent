@@ -16,6 +16,7 @@ dependencies = [
     "typer>=0.15",
     "python-dotenv>=1.0",
     "httpx>=0.28",
+    "psycopg2-binary>=2.9",
 ]
 
 [dependency-groups]

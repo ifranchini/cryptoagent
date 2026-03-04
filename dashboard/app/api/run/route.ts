@@ -19,10 +19,18 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await res.json();
+
+    if (!res.ok && !data.status) {
+      return NextResponse.json(
+        { error: data.error ?? "Sidecar unavailable — start it with: uvicorn api.server:app" },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json(data, { status: res.status });
   } catch {
     return NextResponse.json(
-      { error: "Sidecar unreachable — is it running?" },
+      { error: "Sidecar unreachable — start it with: uvicorn api.server:app" },
       { status: 502 }
     );
   }

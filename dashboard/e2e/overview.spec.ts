@@ -62,4 +62,18 @@ test.describe("Overview Page", () => {
     await page.getByRole("button", { name: /Run Pipeline/i }).click();
     await expect(page.getByText("SIDECAR_URL not configured")).toBeVisible();
   });
+
+  test("run trigger shows error when sidecar is not running", async ({ page }) => {
+    // No route mock — hits the real /api/run endpoint.
+    // The server-side handler must return a clear error (not pass through
+    // a raw 404 from a wrong service on the sidecar port).
+    const btn = page.getByRole("button", { name: /Run Pipeline/i });
+    await btn.click();
+    // Should show an actionable error message
+    await expect(page.getByText(/unavailable|unreachable|not configured/i)).toBeVisible();
+    // Button should turn destructive (red) on error
+    await expect(btn).toHaveAttribute("data-variant", "destructive");
+    // Button should recover to clickable state after auto-reset
+    await expect(btn).toHaveAttribute("data-variant", "default", { timeout: 6000 });
+  });
 });

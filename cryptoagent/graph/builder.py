@@ -250,7 +250,7 @@ class TradingGraph:
         result["reflection_memory"] = memory
 
         # 8. Maybe generate Level 2 reflection
-        l2_reflection = self._reflection_mgr.maybe_generate_level2(regime=regime)
+        self._reflection_mgr.maybe_generate_level2(regime=regime)
 
         # Store pipeline metadata
         result["market_regime"] = market_regime

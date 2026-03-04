@@ -203,7 +203,8 @@ See @docs/ARCHITECTURE.md for the full long-term vision.
 
 ## Documentation
 
-- @docs/ARCHITECTURE.md — long-term vision and full system design
+- @docs/ARCHITECTURE.md — current system architecture (what's actually built)
+- @docs/VISION.md — long-term roadmap and future design ideas
 - @docs/crypto-trading-agents-research.md — landscape research and framework analysis
 - @docs/operations.md — runbook for common dev tasks
 - @docs/todo.md — current tasks and backlog

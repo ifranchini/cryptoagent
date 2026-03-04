@@ -4,6 +4,19 @@
 
 _(none)_
 
+## Next Up
+
+### 1. Accumulate signal history + run ablation analysis
+- [ ] Run 50+ cycles across different market conditions to populate signal tables
+- [ ] Analyze which signals have genuine predictive value at each timeframe
+- [ ] Implement weight optimizer — auto-adjust signal weights based on accuracy
+- [ ] Implement confluence detection — cross-signal pattern analysis
+
+### 2. Remaining test gaps
+- [ ] Unit tests for data providers (mock HTTP responses, verify parsing)
+- [ ] Integration test: single pipeline cycle with mocked LLM + data
+- [ ] CI: add `pytest -q` to pre-commit or GitHub Actions
+
 ## Planned
 
 ### Phase 3 (Remaining — deferred, require paid APIs or infra)
@@ -88,6 +101,16 @@ _(none)_
 - [x] Signal accuracy report — generate hit-rate report injected into Brain context
 - [x] Pipeline integration — pre-pipeline evaluation + post-pipeline extraction in TradingGraph.run()
 - [x] Brain Agent updated with signal accuracy guidance in system prompt
+
+### Test Suite + Documentation
+- [x] Test dependencies (pytest, pytest-asyncio, pytest-cov, freezegun) in pyproject.toml
+- [x] Shared fixtures: in_memory_db, sample_portfolio, sample_market_data, mock_llm
+- [x] Unit tests: signal extractor (15 tests), risk sentinel (12), paper trade (12), signal evaluator (8), regime (8)
+- [x] Integration tests: persistence layer (10 tests), reflection manager (6 tests)
+- [x] 126 tests total, all passing, near-100% coverage on tested modules
+- [x] ARCHITECTURE.md rewritten to reflect actual 5-agent pipeline (~250 lines)
+- [x] VISION.md created with future plans (debate, multi-strategy, backtesting, live execution)
+- [x] CLAUDE.md updated with VISION.md reference
 
 ## Ideas / Backlog
 
